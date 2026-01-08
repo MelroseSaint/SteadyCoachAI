@@ -76,7 +76,7 @@ const App: React.FC = () => {
       {appState === AppState.SETUP && (
           <>
             {/* Minimal Header */}
-            <header className="flex items-center justify-between px-8 py-6 z-10">
+            <header className="flex-none flex items-center justify-between px-8 py-6 z-10">
                 <div className="flex items-center">
                     <h1 className="text-lg font-semibold tracking-wide text-gray-800 dark:text-zinc-100 dark:opacity-90">
                         SteadyCoach
@@ -100,25 +100,24 @@ const App: React.FC = () => {
                 </div>
             </header>
 
-            <main className="flex-1 flex flex-col items-center justify-center p-4">
-                <div className="w-full max-w-xl animate-fade-in">
-                    <SetupForm onStart={handleStartInterview} apiConfig={apiConfig} />
-                    
-                    {!apiConfig.apiKey && apiConfig.provider !== 'custom' && (
-                        <div className="mt-8 text-center text-red-500 dark:text-zinc-400 text-sm">
-                           API key required in settings.
-                        </div>
-                    )}
+            {/* Scrollable Main Content Area */}
+            <main className="flex-1 overflow-y-auto scroll-smooth p-4">
+                <div className="min-h-full flex flex-col items-center justify-center">
+                    <div className="w-full max-w-xl animate-fade-in py-4">
+                        <SetupForm onStart={handleStartInterview} apiConfig={apiConfig} />
+                        
+                        {!apiConfig.apiKey && apiConfig.provider !== 'custom' && (
+                            <div className="mt-8 text-center text-red-500 dark:text-zinc-400 text-sm pb-8">
+                            API key required in settings.
+                            </div>
+                        )}
+                    </div>
                 </div>
             </main>
 
             {/* Footer with Positioning Statement */}
-            <footer className="w-full py-8 px-8 text-center border-t border-gray-200 dark:border-zinc-800/50 bg-gray-100 dark:bg-[#09090b] transition-colors">
-                <p className="text-gray-500 dark:text-zinc-500 text-xs mb-2 max-w-2xl mx-auto leading-relaxed">
-                    This application is a privacy-first, client-only interview coaching tool that offers real-time practice simulations with optional user-provided AI integration for advanced customization and contextual relevance.
-                </p>
-                
-                <div className="flex justify-center items-center space-x-4 mb-4">
+            <footer className="flex-none w-full py-6 px-8 text-center border-t border-gray-200 dark:border-zinc-800/50 bg-gray-100 dark:bg-[#09090b] transition-colors">
+                <div className="flex justify-center items-center space-x-4 mb-2">
                      <button 
                         onClick={() => setIsLegalOpen(true)}
                         className="flex items-center space-x-1 text-[10px] uppercase tracking-wider text-gray-600 hover:text-gray-900 dark:text-zinc-600 dark:hover:text-zinc-400 transition-colors"

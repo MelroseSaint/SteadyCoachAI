@@ -26,7 +26,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
       provider,
       baseUrl: PROVIDERS[provider].baseUrl,
       model: PROVIDERS[provider].defaultModel,
-      apiKey: provider === 'gemini' && config.provider !== 'gemini' ? '' : prev.apiKey,
+      // Only clear key if switching providers, but keep if we are just ensuring state is correct
+      apiKey: provider === config.provider ? prev.apiKey : '',
       enableContextualGrounding: false // Reset grounding when switching providers
     }));
     setValidationError(null);
@@ -34,7 +35,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
 
   const validateConfig = async (cfg: ApiConfig): Promise<boolean> => {
     if (cfg.provider === 'custom') return true; 
-    if (cfg.provider === 'gemini' && !cfg.apiKey) return true; 
+    
+    // STRICT CHECK: Key must be present
+    if (!cfg.apiKey) return false;
 
     try {
       if (cfg.provider === 'gemini') {
@@ -56,6 +59,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
     setValidationError(null);
     setIsValidating(true);
     
+    // Synthetic delay for UX
     await new Promise(r => setTimeout(r, 500));
 
     const isValid = await validateConfig(localConfig);
@@ -64,7 +68,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
     if (isValid) {
       onSave(localConfig);
     } else {
-      setValidationError("Failed to verify API key. Please check your settings.");
+      setValidationError("Invalid API Key or Network Error. Please check your credentials.");
     }
   };
 
@@ -125,7 +129,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
 
           <div>
             <label className="block text-xs font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider mb-2">
-              API Key
+              API Key <span className="text-red-500">*</span>
             </label>
             <input
               type="password"
@@ -134,14 +138,14 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                   setLocalConfig({ ...localConfig, apiKey: e.target.value });
                   setValidationError(null);
               }}
-              placeholder={localConfig.provider === 'gemini' ? "Optional (Uses default free key)" : "sk-..."}
+              placeholder={localConfig.provider === 'gemini' ? "Required (Paste Gemini API Key)" : "sk-..."}
               className={`w-full px-4 py-2.5 bg-gray-50 dark:bg-zinc-900 border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:border-gray-400 dark:focus:border-zinc-500 transition-colors placeholder-gray-400 dark:placeholder-zinc-500 ${
                   validationError ? 'border-red-500/50' : 'border-gray-200 dark:border-zinc-700'
               }`}
             />
             {localConfig.provider === 'gemini' && !localConfig.apiKey && (
-                <p className="text-[11px] text-gray-500 dark:text-zinc-400 mt-2">
-                    Using environment key (if configured)
+                <p className="text-[11px] text-amber-600 dark:text-amber-500 mt-2 font-medium">
+                    A free API key is required. Get one at aistudio.google.com
                 </p>
             )}
             {validationError && (
@@ -190,7 +194,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
             onClick={handleSave}
             disabled={
                 isValidating || 
-                (!localConfig.apiKey && localConfig.provider !== 'custom' && localConfig.provider !== 'gemini')
+                (!localConfig.apiKey && localConfig.provider !== 'custom')
             }
             className="flex items-center space-x-2 px-6 py-2.5 bg-gray-900 dark:bg-zinc-100 hover:bg-black dark:hover:bg-white text-white dark:text-zinc-950 rounded-full font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
           >
