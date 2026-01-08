@@ -1,0 +1,7 @@
+{
+  "name": "SteadyCoachAI",
+  "description": "Your personal AI interview coach with a flexible chat interface.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
