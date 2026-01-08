@@ -140,7 +140,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
               }`}
             />
             {localConfig.provider === 'gemini' && !localConfig.apiKey && (
-                <p className="text-[11px] text-gray-500 dark:text-zinc-400 mt-2">Using SteadyCoach internal key</p>
+                <p className="text-[11px] text-gray-500 dark:text-zinc-400 mt-2">
+                    Using environment key (if configured)
+                </p>
             )}
             {validationError && (
                 <div className="flex items-center text-red-500 dark:text-red-400 text-xs mt-2 animate-fade-in font-medium">

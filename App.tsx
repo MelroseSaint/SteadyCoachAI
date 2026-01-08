@@ -55,8 +55,9 @@ const App: React.FC = () => {
   };
 
   const handleStartInterview = (newSettings: InterviewSettings) => {
-    // If provider is NOT gemini and apiKey is missing, force settings
-    if (!apiConfig.apiKey && apiConfig.provider !== 'gemini' && apiConfig.provider !== 'custom') {
+    // Check if key is present for providers that need it (Gemini & OpenAI & Groq)
+    // Custom provider might use a proxy, so we allow it empty
+    if (!apiConfig.apiKey && apiConfig.provider !== 'custom') {
         setIsSettingsOpen(true);
         return;
     }
@@ -103,7 +104,7 @@ const App: React.FC = () => {
                 <div className="w-full max-w-xl animate-fade-in">
                     <SetupForm onStart={handleStartInterview} apiConfig={apiConfig} />
                     
-                    {!apiConfig.apiKey && apiConfig.provider !== 'gemini' && (
+                    {!apiConfig.apiKey && apiConfig.provider !== 'custom' && (
                         <div className="mt-8 text-center text-red-500 dark:text-zinc-400 text-sm">
                            API key required in settings.
                         </div>

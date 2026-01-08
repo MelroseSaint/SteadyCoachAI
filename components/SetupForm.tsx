@@ -59,8 +59,9 @@ export const SetupForm: React.FC<SetupFormProps> = ({ onStart, apiConfig }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   const isVoiceSupported = apiConfig.provider === 'gemini';
-  // BYOK detection: if provider is not gemini (assuming internal key) OR if apiKey is present
-  const isByok = !!apiConfig.apiKey || apiConfig.provider !== 'gemini';
+  // BYOK detection: if provider is not gemini OR if apiKey is present (even for Gemini)
+  // Actually, we now enforce key for Gemini too, so essentially everything is BYOK/Env-Key
+  const isByok = !!apiConfig.apiKey;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -200,7 +201,7 @@ export const SetupForm: React.FC<SetupFormProps> = ({ onStart, apiConfig }) => {
                     {[
                         { id: 'light', label: 'Light', desc: 'Encouraging' },
                         { id: 'standard', label: 'Standard', desc: 'Balanced' },
-                        { id: 'deep', label: 'Deep', desc: 'Critical (BYOK)' }
+                        { id: 'deep', label: 'Deep', desc: 'Critical (High Perf)' }
                     ].map((f) => {
                          const isDisabled = f.id === 'deep' && !isByok;
                          return (
@@ -291,6 +292,12 @@ export const SetupForm: React.FC<SetupFormProps> = ({ onStart, apiConfig }) => {
             {!isLoading && <ArrowRight size={18} className="text-white dark:text-zinc-800 group-hover:translate-x-1 transition-transform" />}
             </button>
         </div>
+
+        {!apiConfig.apiKey && apiConfig.provider !== 'custom' && (
+            <div className="mt-8 text-center text-red-500 dark:text-zinc-400 text-sm">
+                API key required in settings.
+            </div>
+        )}
       </form>
     </div>
   );
