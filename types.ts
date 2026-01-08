@@ -1,3 +1,4 @@
+
 export type PracticeMode = 'structured' | 'refinement' | 'simulation';
 export type FeedbackDepth = 'light' | 'standard' | 'deep';
 
@@ -9,6 +10,14 @@ export interface InterviewSettings {
   mode: 'text' | 'voice';
   practiceMode: PracticeMode;
   feedbackDepth: FeedbackDepth;
+}
+
+export interface SavedSession extends InterviewSettings {
+  id: string;
+  timestamp: number;
+  lastUpdated: number;
+  messages: Message[];
+  title?: string;
 }
 
 export enum AppState {

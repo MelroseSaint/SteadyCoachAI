@@ -3,8 +3,8 @@ import { ApiConfig, Message } from '../types';
 import { streamCompletion } from '../utils/api-client';
 import { GoogleGenAI } from "@google/genai";
 
-export const useChat = (apiConfig: ApiConfig) => {
-  const [messages, setMessages] = useState<Message[]>([]);
+export const useChat = (apiConfig: ApiConfig, initialMessages: Message[] = []) => {
+  const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   

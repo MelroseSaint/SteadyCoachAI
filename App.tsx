@@ -4,38 +4,47 @@ import { ChatInterface } from './components/ChatInterface';
 import { SettingsDialog } from './components/SettingsDialog';
 import { LegalModal } from './components/LegalModal';
 import { ActiveInterview } from './components/ActiveInterview';
-import { InterviewSettings, AppState, ApiConfig } from './types';
-import { Settings, ShieldCheck, Moon, Sun } from 'lucide-react';
+import { Sidebar } from './components/Sidebar';
+import { InterviewSettings, AppState, ApiConfig, SavedSession } from './types';
+import { Menu } from 'lucide-react';
 import { PROVIDERS } from './constants';
+import { getSessions, saveSession, deleteSession } from './utils/storage';
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.SETUP);
   const [settings, setSettings] = useState<InterviewSettings | null>(null);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
-  // Theme State - Lazy init to prevent flash
+  // History State
+  const [sessions, setSessions] = useState<SavedSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [loadedMessages, setLoadedMessages] = useState<any[]>([]);
+
+  // UI State
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
+  // Theme State
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     const saved = localStorage.getItem('theme');
     if (saved === 'dark' || saved === 'light') return saved;
     return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   });
 
-  // Legal State - Lazy init to prevent flash
+  // Legal State
   const [hasAcknowledged, setHasAcknowledged] = useState(() => localStorage.getItem('legal_acknowledged') === 'true');
   const [isLegalOpen, setIsLegalOpen] = useState(() => localStorage.getItem('legal_acknowledged') !== 'true');
   
-  // Initialize with Gemini as default
+  // Initialize API Config
   const [apiConfig, setApiConfig] = useState<ApiConfig>({
     provider: 'gemini',
-    // Safe access for process.env to prevent browser crashes if polyfill is missing
     apiKey: (typeof process !== 'undefined' && process.env?.API_KEY) || '', 
     baseUrl: PROVIDERS.gemini.baseUrl,
     model: PROVIDERS.gemini.defaultModel,
-    enableContextualGrounding: false // Default to Mode 1 (Local Context Only)
+    enableContextualGrounding: false
   });
 
+  // Effects
   useEffect(() => {
-    // Apply theme class to html
     if (theme === 'dark') {
         document.documentElement.classList.add('dark');
     } else {
@@ -43,6 +52,10 @@ const App: React.FC = () => {
     }
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    setSessions(getSessions());
+  }, []);
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
@@ -55,104 +68,135 @@ const App: React.FC = () => {
   };
 
   const handleStartInterview = (newSettings: InterviewSettings) => {
-    // Check if key is present for providers that need it (Gemini & OpenAI & Groq)
-    // Custom provider might use a proxy, so we allow it empty
     if (!apiConfig.apiKey && apiConfig.provider !== 'custom') {
         setIsSettingsOpen(true);
         return;
     }
+    
+    // Create new session ID
+    const newSessionId = crypto.randomUUID();
+    
+    // Persist initial session structure (even if empty)
+    const newSession: SavedSession = {
+        ...newSettings,
+        id: newSessionId,
+        timestamp: Date.now(),
+        lastUpdated: Date.now(),
+        messages: [],
+        title: `${newSettings.role} Interview`
+    };
+    saveSession(newSession);
+    setSessions(getSessions()); // Refresh list
+
     setSettings(newSettings);
+    setCurrentSessionId(newSessionId);
+    setLoadedMessages([]); // Empty for new
     setAppState(AppState.INTERVIEW);
+    setIsSidebarOpen(false); // Close mobile sidebar
+  };
+
+  const handleLoadSession = (session: SavedSession) => {
+      // Load settings from session
+      setSettings(session);
+      setCurrentSessionId(session.id);
+      
+      // If voice, we don't have messages usually, but logic holds
+      if (session.mode === 'text') {
+        setLoadedMessages(session.messages || []);
+      }
+      
+      setAppState(AppState.INTERVIEW);
+      setIsSidebarOpen(false);
+  };
+
+  const handleNewSession = () => {
+      setAppState(AppState.SETUP);
+      setSettings(null);
+      setCurrentSessionId(null);
+      setIsSidebarOpen(false);
+  };
+
+  const handleDeleteSession = (e: React.MouseEvent, id: string) => {
+      e.stopPropagation();
+      if (window.confirm("Delete this session history?")) {
+        const updated = deleteSession(id);
+        setSessions(updated);
+        if (currentSessionId === id) {
+            handleNewSession();
+        }
+      }
   };
 
   const handleEndInterview = () => {
+    // Refresh sessions list to show latest update timestamp/content
+    setSessions(getSessions());
     setAppState(AppState.SETUP);
     setSettings(null);
+    setCurrentSessionId(null);
   };
 
   return (
-    <div className="h-screen w-full flex flex-col bg-gray-50 dark:bg-[#09090b] text-gray-900 dark:text-zinc-200 font-sans overflow-hidden transition-colors duration-300">
+    <div className="h-screen w-full flex bg-gray-50 dark:bg-[#09090b] text-gray-900 dark:text-zinc-200 font-sans overflow-hidden transition-colors duration-300">
       
-      {appState === AppState.SETUP && (
-          <>
-            {/* Minimal Header */}
-            <header className="flex-none flex items-center justify-between px-8 py-6 z-10">
-                <div className="flex items-center">
-                    <h1 className="text-lg font-semibold tracking-wide text-gray-800 dark:text-zinc-100 dark:opacity-90">
-                        SteadyCoach
-                    </h1>
-                </div>
-                <div className="flex items-center space-x-4">
-                    <button 
-                        onClick={toggleTheme}
-                        className="text-gray-500 hover:text-gray-900 dark:text-zinc-400 dark:hover:text-white transition-colors"
-                        title="Toggle Theme"
-                    >
-                        {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-                    </button>
-                    <button 
-                        onClick={() => setIsSettingsOpen(true)}
-                        className="text-gray-500 hover:text-gray-900 dark:text-zinc-400 dark:hover:text-white transition-colors"
-                        title="Settings"
-                    >
-                        <Settings size={22} />
-                    </button>
-                </div>
-            </header>
+      <Sidebar 
+        isOpen={isSidebarOpen}
+        onCloseMobile={() => setIsSidebarOpen(false)}
+        sessions={sessions}
+        currentSessionId={currentSessionId}
+        onSelectSession={handleLoadSession}
+        onNewSession={handleNewSession}
+        onDeleteSession={handleDeleteSession}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenLegal={() => setIsLegalOpen(true)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
 
-            {/* Scrollable Main Content Area */}
-            <main className="flex-1 overflow-y-auto scroll-smooth p-4">
-                <div className="min-h-full flex flex-col items-center justify-center">
-                    <div className="w-full max-w-xl animate-fade-in py-4">
-                        <SetupForm onStart={handleStartInterview} apiConfig={apiConfig} />
-                        
-                        {!apiConfig.apiKey && apiConfig.provider !== 'custom' && (
-                            <div className="mt-8 text-center text-red-500 dark:text-zinc-400 text-sm pb-8">
-                            API key required in settings.
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </main>
+      <div className="flex-1 flex flex-col h-full min-w-0">
+          
+          {/* Mobile Header (Only visible on small screens) */}
+          <header className="md:hidden flex-none flex items-center justify-between px-4 py-4 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-[#09090b]">
+             <div className="flex items-center space-x-3">
+                 <button onClick={() => setIsSidebarOpen(true)} className="p-1 -ml-1">
+                     <Menu size={24} className="text-gray-600 dark:text-zinc-400" />
+                 </button>
+                 <span className="font-semibold text-gray-900 dark:text-white">SteadyCoach</span>
+             </div>
+          </header>
 
-            {/* Footer with Positioning Statement */}
-            <footer className="flex-none w-full py-6 px-8 text-center border-t border-gray-200 dark:border-zinc-800/50 bg-gray-100 dark:bg-[#09090b] transition-colors">
-                <div className="flex justify-center items-center space-x-4 mb-2">
-                     <button 
-                        onClick={() => setIsLegalOpen(true)}
-                        className="flex items-center space-x-1 text-[10px] uppercase tracking-wider text-gray-600 hover:text-gray-900 dark:text-zinc-600 dark:hover:text-zinc-400 transition-colors"
-                    >
-                        <ShieldCheck size={12} />
-                        <span>FAQ • Terms • Privacy</span>
-                    </button>
+          <main className="flex-1 overflow-hidden relative">
+            {appState === AppState.SETUP && (
+                <div className="h-full overflow-y-auto scroll-smooth p-4">
+                     <div className="min-h-full flex flex-col items-center justify-center">
+                        <div className="w-full max-w-xl animate-fade-in py-8">
+                            <SetupForm onStart={handleStartInterview} apiConfig={apiConfig} />
+                        </div>
+                     </div>
                 </div>
-                
-                <p className="text-gray-400 dark:text-zinc-600 text-[10px]">
-                    also developed by <a href="https://darkstackstudiosinc.vercel.app/" target="_blank" rel="noopener noreferrer" className="hover:text-gray-600 dark:hover:text-zinc-400 underline decoration-zinc-400 dark:decoration-zinc-700 underline-offset-2 transition-colors">DarkStackStudiosInc</a>
-                </p>
-            </footer>
-          </>
-      )}
-
-      {appState === AppState.INTERVIEW && settings && (
-        <>
-            {settings.mode === 'voice' ? (
-                <ActiveInterview
-                    settings={settings}
-                    apiConfig={apiConfig}
-                    onEnd={handleEndInterview}
-                />
-            ) : (
-                <ChatInterface 
-                    settings={settings} 
-                    apiConfig={apiConfig}
-                    onBack={handleEndInterview}
-                    theme={theme}
-                    toggleTheme={toggleTheme}
-                />
             )}
-        </>
-      )}
+
+            {appState === AppState.INTERVIEW && settings && (
+                <div className="h-full w-full">
+                    {settings.mode === 'voice' ? (
+                        <ActiveInterview
+                            settings={settings}
+                            apiConfig={apiConfig}
+                            onEnd={handleEndInterview}
+                        />
+                    ) : (
+                        <ChatInterface 
+                            key={currentSessionId} // Force remount on session switch
+                            sessionId={currentSessionId!}
+                            initialMessages={loadedMessages}
+                            settings={settings} 
+                            apiConfig={apiConfig}
+                            onBack={handleEndInterview}
+                        />
+                    )}
+                </div>
+            )}
+          </main>
+      </div>
 
       <SettingsDialog 
         isOpen={isSettingsOpen} 
@@ -164,7 +208,6 @@ const App: React.FC = () => {
         }}
       />
       
-      {/* Legal Modal - Handles both initial gate and footer view */}
       <LegalModal 
         isOpen={isLegalOpen} 
         initialMode={!hasAcknowledged} 
@@ -179,6 +222,16 @@ const App: React.FC = () => {
         }
         .animate-fade-in {
           animation: fade-in 0.5s ease-out forwards;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #52525b;
+          border-radius: 10px;
         }
       `}</style>
     </div>

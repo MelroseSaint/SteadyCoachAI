@@ -1,16 +1,18 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { InterviewSettings, ApiConfig } from '../types';
+import { InterviewSettings, ApiConfig, Message } from '../types';
 import { useChat } from '../hooks/use-chat';
 import { DEFAULT_INSTRUCTION, COACH_AVATAR_URL } from '../constants';
-import { ArrowLeft, Mic, MicOff, RefreshCw, Square, Globe, ExternalLink, Copy, Check, Download, Printer, Moon, Sun, Trash2 } from 'lucide-react';
+import { ArrowLeft, Mic, MicOff, RefreshCw, Square, Globe, ExternalLink, Copy, Check, Download, Printer, Trash2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { saveSession } from '../utils/storage';
 
 interface ChatInterfaceProps {
   settings: InterviewSettings;
   apiConfig: ApiConfig;
   onBack: () => void;
-  theme: 'light' | 'dark';
-  toggleTheme: () => void;
+  // Session Props
+  sessionId?: string;
+  initialMessages?: Message[];
 }
 
 declare global {
@@ -48,15 +50,35 @@ const CopyButton = ({ content }: { content: string }) => {
   );
 };
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({ settings, apiConfig, onBack, theme, toggleTheme }) => {
-  const { messages, sendMessage, addMessage, isLoading, error, clearChat } = useChat(apiConfig);
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({ settings, apiConfig, onBack, sessionId, initialMessages = [] }) => {
+  const { messages, sendMessage, addMessage, isLoading, error, clearChat } = useChat(apiConfig, initialMessages);
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
 
+  // Auto-Save Logic
+  useEffect(() => {
+    if (messages.length > 0 && sessionId) {
+        // Debounce or just save on every update (localstorage is fast enough for text chat)
+        saveSession({
+            ...settings,
+            id: sessionId,
+            messages,
+            timestamp: Date.now(), // update timestamp if needed, or keep original creation time? 
+            // Better to keep creation timestamp in session prop, but we only have settings.
+            // For now, let's assume saveSession handles updates correctly.
+            // We need to ensure we pass the ORIGINAL timestamp if possible, or just Date.now() for "last updated"
+            lastUpdated: Date.now()
+        } as any);
+    }
+  }, [messages, sessionId, settings]);
+
   const initializeChat = useCallback(() => {
+    // Only initialize if no messages exist (fresh session)
+    if (initialMessages.length > 0 || messages.length > 0) return;
+
     // Determine Practice Mode specific instructions
     let modeInstruction = "";
     switch (settings.practiceMode) {
@@ -78,7 +100,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ settings, apiConfi
     }`;
 
     // Mode 3: User-Injected Context
-    // This data is treated as authoritative for the session.
     const systemPrompt = `
       ${DEFAULT_INSTRUCTION}
       
@@ -100,7 +121,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ settings, apiConfi
         : `Please introduce yourself as "SteadyCoach" and start the interview for the ${settings.role} position. Keep it professional and direct.`;
     
     sendMessage(startMsg);
-  }, [settings, addMessage, sendMessage]);
+  }, [settings, addMessage, sendMessage, initialMessages.length, messages.length]);
 
   useEffect(() => {
     initializeChat();
@@ -144,7 +165,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ settings, apiConfi
          transcript += event.results[i][0].transcript;
        }
        
-       // Ensure proper spacing between existing text and new transcript
        const prefix = baseInput + (baseInput && !baseInput.endsWith(' ') ? ' ' : '');
        const newValue = prefix + transcript;
        
@@ -172,7 +192,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ settings, apiConfi
   };
 
   const handleClearChat = () => {
-    if (window.confirm('Restart session?')) {
+    if (window.confirm('Restart session? This will clear current progress.')) {
       clearChat();
       setTimeout(initializeChat, 50);
     }
@@ -227,7 +247,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ settings, apiConfi
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-zinc-800 bg-white/80 dark:bg-[#09090b]/95 backdrop-blur-sm z-10 no-print transition-colors duration-300">
         <button onClick={onBack} className="text-gray-500 hover:text-gray-900 dark:text-zinc-400 dark:hover:text-white transition-colors text-sm font-medium flex items-center">
             <ArrowLeft size={16} className="mr-2" />
-            End
+            <span className="hidden sm:inline">Back to Setup</span>
         </button>
         <div className="flex flex-col items-center">
             <img 
@@ -242,7 +262,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ settings, apiConfi
                 )}
             </div>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 sm:space-x-3">
              <button 
                 onClick={handlePrint}
                 className="text-gray-500 hover:text-gray-900 dark:text-zinc-500 dark:hover:text-white transition-colors" 
@@ -257,17 +277,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ settings, apiConfi
             >
                 <Download size={18} />
             </button>
-            <button 
-                onClick={toggleTheme}
-                className="text-gray-500 hover:text-gray-900 dark:text-zinc-500 dark:hover:text-white transition-colors"
-                title="Toggle Theme"
-            >
-                {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
-            <div className="w-px h-4 bg-gray-300 dark:bg-zinc-700 mx-1"></div>
+            <div className="w-px h-4 bg-gray-300 dark:bg-zinc-700 mx-1 hidden sm:block"></div>
             <button 
                 onClick={handleClearHistory}
-                className="text-gray-500 hover:text-red-500 dark:text-zinc-500 dark:hover:text-red-400 transition-colors"
+                className="text-gray-500 hover:text-red-500 dark:text-zinc-500 dark:hover:text-red-400 transition-colors hidden sm:block"
                 title="Clear Chat History"
             >
                 <Trash2 size={18} />
