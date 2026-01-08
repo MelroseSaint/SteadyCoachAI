@@ -35,7 +35,7 @@ export const useChat = (apiConfig: ApiConfig) => {
 
     try {
       if (apiConfig.provider === 'gemini') {
-        const apiKey = apiConfig.apiKey || process.env.API_KEY;
+        const apiKey = apiConfig.apiKey || (typeof process !== 'undefined' && process.env?.API_KEY);
         if (!apiKey) throw new Error("API Key missing");
 
         const ai = new GoogleGenAI({ apiKey });

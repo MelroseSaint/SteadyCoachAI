@@ -38,4 +38,4 @@ export const SAMPLE_RATE_OUTPUT = 24000;
 export const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-12-2025';
 
 // Professional woman placeholder resembling the provided image
-export const COACH_AVATAR_URL = 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=256&h=256&auto=format&fit=crop';
+export const COACH_AVATAR_URL = 'https://images.generated.photos/vmb60Gy5dtfzvX6D8wAVbhdQ04vMzUJTHP_HLuhpoQA/rs:fit:256:256/czM6Ly9pY29uczgu/Z3Bob3Rvcy1wcm9k/LnBob3Rvcy92Ml8w/NTQ2MTAxLmpwZw.jpg';

@@ -13,39 +13,26 @@ const App: React.FC = () => {
   const [settings, setSettings] = useState<InterviewSettings | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
-  // Theme State
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  // Theme State - Lazy init to prevent flash
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved === 'dark' || saved === 'light') return saved;
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  });
 
-  // Legal State
-  const [isLegalOpen, setIsLegalOpen] = useState(false);
-  const [hasAcknowledged, setHasAcknowledged] = useState(false);
+  // Legal State - Lazy init to prevent flash
+  const [hasAcknowledged, setHasAcknowledged] = useState(() => localStorage.getItem('legal_acknowledged') === 'true');
+  const [isLegalOpen, setIsLegalOpen] = useState(() => localStorage.getItem('legal_acknowledged') !== 'true');
   
   // Initialize with Gemini as default
   const [apiConfig, setApiConfig] = useState<ApiConfig>({
     provider: 'gemini',
-    apiKey: process.env.API_KEY || '', 
+    // Safe access for process.env to prevent browser crashes if polyfill is missing
+    apiKey: (typeof process !== 'undefined' && process.env?.API_KEY) || '', 
     baseUrl: PROVIDERS.gemini.baseUrl,
     model: PROVIDERS.gemini.defaultModel,
     enableContextualGrounding: false // Default to Mode 1 (Local Context Only)
   });
-
-  useEffect(() => {
-    // Check if user has acknowledged the local-only notice
-    const ack = localStorage.getItem('legal_acknowledged');
-    if (ack === 'true') {
-        setHasAcknowledged(true);
-    } else {
-        setIsLegalOpen(true);
-    }
-
-    // Load theme
-    const savedTheme = localStorage.getItem('theme') as 'dark' | 'light' | null;
-    if (savedTheme) {
-        setTheme(savedTheme);
-    } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
-        setTheme('light');
-    }
-  }, []);
 
   useEffect(() => {
     // Apply theme class to html
