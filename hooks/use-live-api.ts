@@ -8,10 +8,11 @@ interface UseLiveApiProps {
   onConnect?: () => void;
   onDisconnect?: () => void;
   onError?: (error: Error) => void;
+  onTranscript?: (role: 'user' | 'assistant', text: string) => void;
   apiKey: string;
 }
 
-export const useLiveApi = ({ systemInstruction, onConnect, onDisconnect, onError, apiKey }: UseLiveApiProps) => {
+export const useLiveApi = ({ systemInstruction, onConnect, onDisconnect, onError, onTranscript, apiKey }: UseLiveApiProps) => {
   const [isConnected, setIsConnected] = useState(false);
   const [isAiSpeaking, setIsAiSpeaking] = useState(false);
   const [volume, setVolume] = useState(0); // 0 to 100 for visualizer
@@ -30,6 +31,10 @@ export const useLiveApi = ({ systemInstruction, onConnect, onDisconnect, onError
   
   // Gemini Session
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
+  
+  // Transcription State
+  const currentInputTranscriptRef = useRef('');
+  const currentOutputTranscriptRef = useRef('');
 
   const connect = useCallback(async () => {
     try {
@@ -73,6 +78,9 @@ export const useLiveApi = ({ systemInstruction, onConnect, onDisconnect, onError
         model: MODEL_NAME,
         config: {
           responseModalities: [Modality.AUDIO],
+          // Enable transcription
+          inputAudioTranscription: {},
+          outputAudioTranscription: {},
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
           },
@@ -103,13 +111,14 @@ export const useLiveApi = ({ systemInstruction, onConnect, onDisconnect, onError
             updateVolume();
           },
           onmessage: async (message: LiveServerMessage) => {
+            const content = message.serverContent;
+            
             // Handle Audio Output
-            const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+            const base64Audio = content?.modelTurn?.parts?.[0]?.inlineData?.data;
             if (base64Audio && outputContextRef.current) {
               setIsAiSpeaking(true);
               const ctx = outputContextRef.current;
               
-              // Ensure we schedule seamlessly
               nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime);
               
               const audioBuffer = await decodeAudioData(
@@ -135,14 +144,37 @@ export const useLiveApi = ({ systemInstruction, onConnect, onDisconnect, onError
               sourcesRef.current.add(source);
             }
 
+            // Handle Transcriptions
+            if (content?.inputTranscription?.text) {
+                currentInputTranscriptRef.current += content.inputTranscription.text;
+            }
+            if (content?.outputTranscription?.text) {
+                currentOutputTranscriptRef.current += content.outputTranscription.text;
+            }
+
+            // Handle Turn Completion (Flush transcripts)
+            if (content?.turnComplete) {
+                if (currentInputTranscriptRef.current.trim()) {
+                    onTranscript?.('user', currentInputTranscriptRef.current.trim());
+                    currentInputTranscriptRef.current = '';
+                }
+                if (currentOutputTranscriptRef.current.trim()) {
+                    onTranscript?.('assistant', currentOutputTranscriptRef.current.trim());
+                    currentOutputTranscriptRef.current = '';
+                }
+            }
+
             // Handle Interruption
-            if (message.serverContent?.interrupted) {
+            if (content?.interrupted) {
               sourcesRef.current.forEach(s => {
                 try { s.stop(); } catch (e) {}
               });
               sourcesRef.current.clear();
               nextStartTimeRef.current = 0;
               setIsAiSpeaking(false);
+              
+              // Also clear pending output transcript if interrupted (as it wasn't fully spoken)
+              currentOutputTranscriptRef.current = '';
             }
           },
           onclose: () => {
@@ -162,7 +194,7 @@ export const useLiveApi = ({ systemInstruction, onConnect, onDisconnect, onError
       onError?.(err);
       console.error(err);
     }
-  }, [systemInstruction, onConnect, onDisconnect, onError, apiKey]);
+  }, [systemInstruction, onConnect, onDisconnect, onError, apiKey, onTranscript]);
 
   const disconnect = useCallback(async () => {
     if (sessionPromiseRef.current) {
@@ -180,7 +212,6 @@ export const useLiveApi = ({ systemInstruction, onConnect, onDisconnect, onError
 
       try {
         const session = await sessionPromiseRef.current;
-        // Typescript safe cast for closure if needed, though library usually handles cleanup on close
         (session as any).close?.();
       } catch (e) {
         console.warn("Error closing session", e);
@@ -192,7 +223,6 @@ export const useLiveApi = ({ systemInstruction, onConnect, onDisconnect, onError
     }
   }, []);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       disconnect();

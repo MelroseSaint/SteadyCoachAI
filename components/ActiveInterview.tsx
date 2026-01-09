@@ -1,18 +1,21 @@
-import React, { useEffect, useState } from 'react';
-import { InterviewSettings, ApiConfig } from '../types';
+import React, { useEffect, useState, useCallback } from 'react';
+import { InterviewSettings, ApiConfig, Message } from '../types';
 import { useLiveApi } from '../hooks/use-live-api';
 import { AudioVisualizer } from './AudioVisualizer';
 import { DEFAULT_INSTRUCTION, COACH_AVATAR_URL } from '../constants';
 import { PhoneOff, Mic, MicOff, AlertCircle, MessageSquare, X, Star } from 'lucide-react';
+import { saveSession } from '../utils/storage';
 
 interface ActiveInterviewProps {
   settings: InterviewSettings;
   apiConfig: ApiConfig;
   onEnd: () => void;
+  sessionId: string;
 }
 
-export const ActiveInterview: React.FC<ActiveInterviewProps> = ({ settings, apiConfig, onEnd }) => {
+export const ActiveInterview: React.FC<ActiveInterviewProps> = ({ settings, apiConfig, onEnd, sessionId }) => {
   const [error, setError] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
   
   // Feedback State
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
@@ -56,10 +59,33 @@ export const ActiveInterview: React.FC<ActiveInterviewProps> = ({ settings, apiC
     Your output must be speech-friendly. Keep sentences moderately short.
   `;
 
+  // Callback to handle incoming transcripts from the Live API
+  const handleTranscript = useCallback((role: 'user' | 'assistant', text: string) => {
+    const newMessage: Message = {
+        id: crypto.randomUUID(),
+        role,
+        content: text
+    };
+    
+    setMessages(prev => {
+        const updated = [...prev, newMessage];
+        // Persist to local storage immediately
+        saveSession({
+            ...settings,
+            id: sessionId,
+            messages: updated,
+            timestamp: Date.now(), // Keeps original creation time? Ideally passed from parent. 
+            lastUpdated: Date.now()
+        } as any);
+        return updated;
+    });
+  }, [settings, sessionId]);
+
   const { connect, disconnect, isConnected, isAiSpeaking, volume } = useLiveApi({
     systemInstruction: instruction,
     apiKey: apiConfig.apiKey,
     onError: (err) => setError(err.message),
+    onTranscript: handleTranscript,
     onDisconnect: () => {
        // Optional: Auto-end or show reconnection logic
     }

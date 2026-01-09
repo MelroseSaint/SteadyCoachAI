@@ -96,14 +96,15 @@ const App: React.FC = () => {
   };
 
   const handleLoadSession = (session: SavedSession) => {
-      // Load settings from session
-      setSettings(session);
+      // When loading a past session, we view it as a transcript (Text Mode)
+      // regardless of whether it was originally voice or text.
+      // The user can always start a *new* voice session if they want to speak again.
+      setSettings({
+          ...session,
+          mode: 'text' // Force text mode for review
+      });
       setCurrentSessionId(session.id);
-      
-      // If voice, we don't have messages usually, but logic holds
-      if (session.mode === 'text') {
-        setLoadedMessages(session.messages || []);
-      }
+      setLoadedMessages(session.messages || []);
       
       setAppState(AppState.INTERVIEW);
       setIsSidebarOpen(false);
@@ -182,6 +183,7 @@ const App: React.FC = () => {
                             settings={settings}
                             apiConfig={apiConfig}
                             onEnd={handleEndInterview}
+                            sessionId={currentSessionId!}
                         />
                     ) : (
                         <ChatInterface 
